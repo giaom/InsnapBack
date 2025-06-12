@@ -1,17 +1,20 @@
+const env = require('dotenv').config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
 const mysql = require("mysql2");
+const session = require('express-session');
+
 
 app.use(cors());
 
 app.use(express.json());
 
 const conn = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "Hajira2020!",
-    database: "InsnapDB"
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
 });
 
 conn.connect(function (err) {
@@ -23,12 +26,65 @@ conn.connect(function (err) {
     }
 });
 
+app.use(session({
+  secret: 'a very secret key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 1000 * 60 * 60 } // e.g. 1 hour
+}));
+
+
 app.use(express.static("InsnapFront"));
 const router = express.Router();
 
-router.post("/index", function (req, res) {
-    console.log("Made request to sign in");
+router.get("/user-uploads/:username/:filter", function (req, res){
+const username = req.params.username;
+const filter = req.params.filter;
+console.log("Was called");
+
+
+let query = "";
+let params = [];
+
+if (filter === "all") {
+  query = "SELECT * FROM Uploads WHERE Poster = ? AND Access IN ('PUBLIC', 'PRIVATE', 'FRIENDS')";
+  params = [username];
+} else {
+  query = "SELECT * FROM Uploads WHERE Poster = ? AND Access = ?";
+  params = [username, filter.toUpperCase()];
+}
+
+conn.query(query, params, function (err, rows) {
+    if(err){
+        console.error("DB error:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+      console.log(rows)
+      return res.status(200).json(rows);
+    }
+  );
 });
+
+router.get("/home", function (req, res){
+const username = req.params.username;
+
+let query = "";
+let params = [];
+
+query = "SELECT * FROM Uploads WHERE Poster = ? AND Access IN ('PUBLIC', 'PRIVATE', 'FRIENDS')";
+params = [username];
+
+conn.query(query, params, function (err, rows) {
+    if(err){
+        console.error("DB error:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+      console.log(rows)
+      return res.status(200).json(rows);
+    }
+  );
+});
+
 
 router.get("/check-username", function (req, res) {
     const username = req.query.username;
@@ -46,7 +102,10 @@ router.get("/check-username", function (req, res) {
             }
 
         })
+});
 
+router.post("/index", function (req, res) {
+    console.log("Made request to sign in");
 });
 
 
@@ -59,7 +118,6 @@ router.get("/check-email", function (req, res) {
             } else if (rows.length == 0) {
                 console.log("Marked email true");
                 return res.status(200).json({ taken: false });
-
             } else {
                 return res.status(200).json({ taken: true });
             }
@@ -84,6 +142,40 @@ router.post("/signup", function (req, res) {
     });
 });
 
+router.post("/login", function (req, res) {
+    const username = req.body.username;
+    const password = req.body.password;
+    conn.query("SELECT * FROM Users WHERE Username = ?",
+    [username], function (err, rows) {
+            if (err) {
+            console.log("ERROR:", err);
+            } else if (rows.length == 0) {
+                console.log("No username found");
+                return res.status(200).json({ Login: false });
+            }
+            const user = rows[0];
+            if (user.Password === password) {
+                console.log("Login Worked");
+                req.session.username = username;
+                return res.status(200).json({ Login: true });
+            } else {
+                return res.status(200).json({ Login: false });
+            }
+
+        })
+
+    
+});
+
+router.get("/current-user", (req, res) => {
+  if (req.session.username) {
+    return res.json({ username: req.session.username });
+  } else {
+    return res.json({ username: null });
+  }
+});
+
+
 router.post("/upload", function (req, res) {
     const address  = req.body.address;
     const username = req.body.username;
@@ -102,22 +194,7 @@ router.post("/upload", function (req, res) {
 });
 
 
-router.get("/user-uploads/:username", function (req, res){
-      console.log("Grabbing Photos for: " + req.params.username);
-  const username = req.params.username;
-  conn.query(
-    "SELECT * FROM Uploads WHERE Poster = ?",
-    [username],
-    function (err, rows) {
-      if (err) {
-        console.error("DB error:", err);
-        return res.status(500).json({ error: "Database error" });
-      }
-      console.log(rows)
-      return res.status(200).json(rows);
-    }
-  );
-});
+
 
 const logRequest = function (req, res, next) {
     console.log(`Request: ${req.method} for ${req.path}`);
