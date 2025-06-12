@@ -30,9 +30,12 @@ app.use(session({
   secret: 'a very secret key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 } // e.g. 1 hour
+  cookie: { maxAge: 1000 * 60 * 60 }
 }));
 
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/InsnapFront/index.html");
+});
 
 app.use(express.static("InsnapFront"));
 const router = express.Router();
@@ -207,5 +210,5 @@ app.use("/api", router);
 
 
 app.listen(3001, function () {
-    console.log("Listening on port 3001...");
+    console.log("Server is running at: http://localhost:3001/auth.html");
 });

@@ -9,9 +9,11 @@ DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
 DB_NAME=InsnapDB
 EOF
+echo ".env file created."
 
 npm install
 
+mysql -u "$DB_USER" -p"$DB_PASSWORD" < InsnapDB.sql
+mysql -u "$DB_USER" -p"$DB_PASSWORD" < UserActivityInit.sql
 
 
-echo ".env file created."
